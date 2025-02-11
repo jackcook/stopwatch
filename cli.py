@@ -39,6 +39,12 @@ def cli():
     help="GPU to run the vLLM server on. Defaults to 'H100'.",
 )
 @click.option(
+    "--required-gpu-name",
+    type=str,
+    default=None,
+    help="If specified, the vLLM server will only start if the name of the current GPU matches this name.",
+)
+@click.option(
     "--vllm-docker-tag",
     type=str,
     default="latest",

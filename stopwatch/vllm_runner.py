@@ -5,6 +5,7 @@ import time
 import urllib.request
 
 import modal
+import modal.experimental
 
 from .resources import app, hf_secret, traces_volume, tunnel_urls
 
@@ -31,14 +32,34 @@ class vLLMBase:
     """
 
     @modal.method()
-    def start(self, caller_id: str, env_vars: dict = {}, vllm_args: list = []):
+    def start(
+        self,
+        caller_id: str,
+        env_vars: dict = {},
+        vllm_args: list = [],
+        required_gpu_name: str = None,
+    ):
         """Start the vLLM server.
 
         Args:
             caller_id (str): ID of the function call that started the vLLM server.
             env_vars (dict): Environment variables to set for the vLLM server.
             vllm_args (list): Arguments to pass to the vLLM server.
+            required_gpu_name (str): If specified, the vLLM server will only start
+                if the name of the current GPU matches this name.
         """
+
+        if required_gpu_name is not None:
+            device_info = subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv"]
+            ).decode("utf-8")
+
+            print(device_info)
+
+            if required_gpu_name not in device_info:
+                tunnel_urls[caller_id] = "exit"
+                modal.experimental.stop_fetching_inputs()
+                return
 
         self.caller_id = caller_id
 
@@ -64,10 +85,6 @@ class vLLMBase:
 
     @modal.exit()
     def shutdown(self):
-        # Remove tunnel URL from dict
-        if hasattr(self, "caller_id") and self.caller_id in tunnel_urls:
-            tunnel_urls.pop(self.caller_id)
-
         # Commit traces volume
         traces_volume.commit()
 
@@ -78,7 +95,7 @@ class vLLMBase:
 def vllm_cls(
     image=vllm_image_factory(),
     secrets=[hf_secret],
-    gpu=modal.gpu.H100(),
+    gpu="H100",
     volumes={TRACES_PATH: traces_volume},
     cpu=4,
     memory=65536,
@@ -104,7 +121,7 @@ def vllm_cls(
     return decorator
 
 
-@vllm_cls()
+@vllm_cls(container_idle_timeout=2, cloud="aws", region=None)
 class vLLM(vLLMBase):
     pass
 
@@ -121,6 +138,7 @@ def vllm(
     env_vars: dict = {},
     extra_args: list = [],
     gpu: str = "H100",
+    required_gpu_name: str = None,
     profile: bool = False,
 ):
     # Pick vLLM server class
@@ -134,27 +152,38 @@ def vllm(
     caller_id = modal.current_function_call_id()
 
     # Start the vLLM server
-    vllm = cls.with_options(gpu=gpu)()
-    vllm_fc = vllm.start.spawn(
-        caller_id=caller_id,
-        env_vars=env_vars,
-        vllm_args=["--model", model, *extra_args],
-    )
+    vllm_cls = cls.with_options(gpu=gpu)
+    url = "exit"
 
-    # Wait for vLLM server to start
-    while True:
-        time.sleep(5)
-        url = tunnel_urls.get(caller_id, None)
+    while url == "exit":
+        vllm = vllm_cls()
+        vllm_fc = vllm.start.spawn(
+            caller_id=caller_id,
+            env_vars=env_vars,
+            vllm_args=["--model", model, *extra_args],
+            required_gpu_name=required_gpu_name,
+        )
 
-        if url is None:
-            continue
+        # Wait for vLLM server to start
+        while True:
+            time.sleep(5)
+            url = tunnel_urls.get(caller_id, None)
 
-        try:
-            urllib.request.urlopen(f"{url}/metrics")
-            print(f"Connected to vLLM instance at {url}")
-            break
-        except Exception:
-            continue
+            if url is None:
+                continue
+            elif url == "exit":
+                print("vLLM server exited without starting")
+
+                # Wait for container idle timeout
+                time.sleep(5)
+                break
+
+            try:
+                urllib.request.urlopen(f"{url}/metrics")
+                print(f"Connected to vLLM instance at {url}")
+                break
+            except Exception:
+                continue
 
     if profile:
         req = urllib.request.Request(f"{url}/start_profile", method="POST")
