@@ -1,0 +1,16 @@
+title: H100 vs. H200
+benchmarks:
+  - name: AWS H100
+    config:
+      model: meta-llama/Llama-3.1-8B-Instruct
+      required_gpu_name: H100 80GB HBM3
+      cloud: aws
+  - name: AWS H200
+    config:
+      model: meta-llama/Llama-3.1-8B-Instruct
+      required_gpu_name: H200
+      cloud: aws
+  - name: OCI H100
+    config:
+      model: meta-llama/Llama-3.1-8B-Instruct
+      required_gpu_name: H100 80GB HBM3

@@ -45,6 +45,12 @@ def cli():
     help="If specified, the vLLM server will only start if the name of the current GPU matches this name.",
 )
 @click.option(
+    "--cloud",
+    type=str,
+    default="oci",
+    help="Cloud provider to run the vLLM server on. Defaults to 'oci'.",
+)
+@click.option(
     "--vllm-docker-tag",
     type=str,
     default="latest",

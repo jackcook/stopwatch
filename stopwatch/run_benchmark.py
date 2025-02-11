@@ -40,6 +40,7 @@ def run_benchmark(
     data_type: str = BenchmarkDefaults.DATA_TYPE,
     gpu: str = BenchmarkDefaults.GPU,
     required_gpu_name: str = None,
+    cloud: str = BenchmarkDefaults.CLOUD,
     vllm_docker_tag: str = BenchmarkDefaults.VLLM_DOCKER_TAG,
     vllm_env_vars: Dict[str, str] = BenchmarkDefaults.VLLM_ENV_VARS,
     vllm_extra_args: List[str] = BenchmarkDefaults.VLLM_EXTRA_ARGS,
@@ -58,6 +59,8 @@ def run_benchmark(
         gpu (str): The GPU to use for benchmarking.
         required_gpu_name (str): If specified, the vLLM server will only start
             if the name of the current GPU matches this name.
+        cloud (str): The cloud provider to use for benchmarking. Defaults to
+            `oci`.
         vllm_docker_tag (str): Tag of the vLLM server docker image. Defaults to
             `latest`.
         vllm_env_vars (dict): Environment variables to pass to the vLLM server.
@@ -75,6 +78,7 @@ def run_benchmark(
         extra_args=vllm_extra_args,
         gpu=gpu,
         required_gpu_name=required_gpu_name,
+        cloud=cloud,
     ) as vllm_url:
         metrics_url = f"{vllm_url}/metrics"
         vllm_monkey_patch(metrics_url)
@@ -102,6 +106,8 @@ def run_benchmark(
         data=data,
         data_type=data_type,
         gpu=gpu,
+        required_gpu_name=required_gpu_name,
+        cloud=cloud,
         vllm_docker_tag=vllm_docker_tag,
         vllm_env_vars=vllm_env_vars,
         vllm_extra_args=vllm_extra_args,

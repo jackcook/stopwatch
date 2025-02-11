@@ -121,8 +121,13 @@ def vllm_cls(
     return decorator
 
 
-@vllm_cls(container_idle_timeout=2, cloud="aws", region=None)
+@vllm_cls()
 class vLLM(vLLMBase):
+    pass
+
+
+@vllm_cls(container_idle_timeout=2, cloud="aws", region=None)
+class vLLM_AWS(vLLMBase):
     pass
 
 
@@ -139,15 +144,22 @@ def vllm(
     extra_args: list = [],
     gpu: str = "H100",
     required_gpu_name: str = None,
+    cloud: str = None,
     profile: bool = False,
 ):
     # Pick vLLM server class
-    if docker_tag == "latest":
-        cls = vLLM
-    elif docker_tag == "v0.6.6":
-        cls = vLLM_v0_6_6
+    if cloud == "aws":
+        assert docker_tag == "latest"
+        cls = vLLM_AWS
+    elif cloud == "oci":  # cloud = oci
+        if docker_tag == "latest":
+            cls = vLLM
+        elif docker_tag == "v0.6.6":
+            cls = vLLM_v0_6_6
+        else:
+            raise ValueError(f"Invalid vLLM docker tag: {docker_tag}")
     else:
-        raise ValueError(f"Invalid vLLM docker tag: {docker_tag}")
+        raise ValueError(f"Invalid cloud provider: {cloud}")
 
     caller_id = modal.current_function_call_id()
 
